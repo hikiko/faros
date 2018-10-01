@@ -15,6 +15,7 @@
 #define BEAM_RMIN 0.01
 #define BEAM_RMAX 0.125
 #define BEAM_ENERGY 0.02
+#define BEAM_LEN 16.0
 
 static bool init();
 static void cleanup();
@@ -35,6 +36,9 @@ static float cam_theta = 45, cam_phi, cam_dist = 10;
 static unsigned int sdr_curve_top, sdr_beam, sdr_sky;
 static unsigned int start_time;
 static float beam_rot_speed = 0.1;
+
+static const float sil_color[] = {0.05, 0.02, 0.1, 1.0};
+static const float beam_color[] = {0.5, 0.4, 0.2, 1.0};
 
 int main(int argc, char **argv)
 {
@@ -94,7 +98,7 @@ static void cleanup()
 
 static void faros()
 {
-	glColor3f(0, 0, 0);
+	glColor3fv(sil_color);
 
 	// kormos
 	glPushMatrix();
@@ -184,6 +188,7 @@ static void light()
 
 	glTranslatef(0, 4.65, 0.2);
 	bind_program(sdr_beam);
+	set_uniform_float(sdr_beam, "beam_len", BEAM_LEN);
 
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE);
@@ -191,11 +196,11 @@ static void light()
 	for(int i=0; i<BEAM_SHELLS; i++) {
 		float t = (float)i / (float)(BEAM_SHELLS - 1);
 		float rad = BEAM_RMIN + (BEAM_RMAX - BEAM_RMIN) * t;
-		float alpha = BEAM_ENERGY / t;
+		float alpha = BEAM_ENERGY / (t * t);
 
-		glColor4f(0.8, 0.8, 0.2, alpha);
+		glColor4f(beam_color[0], beam_color[1], beam_color[2], alpha);
 
-		glutSolidCylinder(rad, 6, 10, 1);
+		glutSolidCylinder(rad, BEAM_LEN, 12, 1);
 	}
 
 	bind_program(0);
@@ -212,7 +217,7 @@ static void ground()
 	glTranslatef(0, -1.25, 0);
 	glScalef(1, 0.1, 1);
 
-	glColor3f(0, 0, 0);
+	glColor3fv(sil_color);
 	glutSolidSphere(10, 32, 32);
 
 	glPopMatrix();
