@@ -24,6 +24,7 @@ static void faros();
 static void light();
 static void ground();
 static void backdrop();
+static void xlogo();
 
 static void display();
 static void idle();
@@ -35,7 +36,9 @@ static void mmotion(int x, int y);
 static float cam_theta = 45, cam_phi, cam_dist = 10;
 static unsigned int sdr_curve_top, sdr_beam, sdr_sky;
 static unsigned int start_time;
-static float beam_rot_speed = 0.1;
+static float anim_speed = 0.1;
+static unsigned int anim_stop_time;
+static unsigned int tmsec;
 
 static const float sil_color[] = {0.05, 0.02, 0.1, 1.0};
 static const float beam_color[] = {0.5, 0.4, 0.2, 1.0};
@@ -175,7 +178,7 @@ static void faros()
 	glScalef(1, 1, 0.45);
 	glutSolidCylinder(1, 1, 4, 16);
 	glPopMatrix();
-	
+
 	bind_program(0);
 }
 
@@ -234,8 +237,14 @@ static void backdrop()
 
 static void display()
 {
-	unsigned int tmsec = glutGet(GLUT_ELAPSED_TIME) - start_time;
+	if(anim_stop_time > 0) {
+		tmsec = anim_stop_time - start_time;
+	} else {
+		tmsec = glutGet(GLUT_ELAPSED_TIME) - start_time;
+	}
+
 	float tsec = (float)tmsec / 1000.0;
+	float tanim = tsec * anim_speed;
 
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	backdrop();
@@ -252,7 +261,7 @@ static void display()
 
 	glPushMatrix();
 
-	float beam_angle = tsec * beam_rot_speed * 360;
+	float beam_angle = tanim * 360;
 
 	glRotatef(beam_angle, 0, 1, 0);
 	light();
@@ -277,11 +286,35 @@ static void reshape(int x, int y)
 	gluPerspective(50, (float)x / (float)y, 0.5, 500);
 }
 
+static unsigned int calc_timeshift(float prev_speed, float speed)
+{
+	return tmsec * speed - tmsec * prev_speed;
+}
+
 static void keyboard(unsigned char c, int x, int y)
 {
 	switch(c) {
 	case 27:
 		exit(0);
+	case ' ':
+		if(anim_stop_time > 0) {
+			start_time += glutGet(GLUT_ELAPSED_TIME) - anim_stop_time;
+			anim_stop_time = 0;
+		} else {
+			anim_stop_time = glutGet(GLUT_ELAPSED_TIME);
+		}
+		break;
+	case '=':
+		//printf("prin %u\n", glutGet(GLUT_ELAPSED_TIME) - start_time);
+		//start_time += calc_timeshift(anim_speed, anim_speed + 0.1);
+		anim_speed += 0.1;
+		break;
+	case '-':
+		//start_time += calc_timeshift(anim_speed, anim_speed - 0.1);
+		anim_speed -= 0.1;
+		if(anim_speed < 0)
+			anim_speed = 0;
+		break;
 	default:
 		break;
 	}
