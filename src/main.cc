@@ -35,10 +35,10 @@ static void mmotion(int x, int y);
 
 static float cam_theta = 45, cam_phi, cam_dist = 10;
 static unsigned int sdr_curve_top, sdr_beam, sdr_sky;
-static unsigned int start_time;
-static float anim_speed = 0.1;
-static unsigned int anim_stop_time;
-static unsigned int tmsec;
+static long start_time;
+static float anim_speed = 1.0;
+static long anim_stop_time;
+static long tmsec;
 
 static const float sil_color[] = {0.05, 0.02, 0.1, 1.0};
 static const float beam_color[] = {0.5, 0.4, 0.2, 1.0};
@@ -240,7 +240,7 @@ static void display()
 	if(anim_stop_time > 0) {
 		tmsec = anim_stop_time - start_time;
 	} else {
-		tmsec = glutGet(GLUT_ELAPSED_TIME) - start_time;
+		tmsec = (long)glutGet(GLUT_ELAPSED_TIME) - start_time;
 	}
 
 	float tsec = (float)tmsec / 1000.0;
@@ -261,8 +261,7 @@ static void display()
 
 	glPushMatrix();
 
-	float beam_angle = tanim * 360;
-
+	float beam_angle = tanim * 0.1 * 360;
 	glRotatef(beam_angle, 0, 1, 0);
 	light();
 
@@ -286,16 +285,22 @@ static void reshape(int x, int y)
 	gluPerspective(50, (float)x / (float)y, 0.5, 500);
 }
 
-static unsigned int calc_timeshift(float prev_speed, float speed)
+static long calc_timeshift(float prev_speed, float speed)
 {
-	return tmsec * speed - tmsec * prev_speed;
+	long delta = tmsec * speed - tmsec * prev_speed;
+	return delta / speed;
 }
+
+#define ANIM_DELTA	0.5
 
 static void keyboard(unsigned char c, int x, int y)
 {
+	float prev_anim_speed;
+
 	switch(c) {
 	case 27:
 		exit(0);
+
 	case ' ':
 		if(anim_stop_time > 0) {
 			start_time += glutGet(GLUT_ELAPSED_TIME) - anim_stop_time;
@@ -304,16 +309,18 @@ static void keyboard(unsigned char c, int x, int y)
 			anim_stop_time = glutGet(GLUT_ELAPSED_TIME);
 		}
 		break;
+
 	case '=':
-		//printf("prin %u\n", glutGet(GLUT_ELAPSED_TIME) - start_time);
-		//start_time += calc_timeshift(anim_speed, anim_speed + 0.1);
-		anim_speed += 0.1;
+		start_time += calc_timeshift(anim_speed, anim_speed + ANIM_DELTA);
+		anim_speed += ANIM_DELTA;
 		break;
+
 	case '-':
-		//start_time += calc_timeshift(anim_speed, anim_speed - 0.1);
-		anim_speed -= 0.1;
+		prev_anim_speed = anim_speed;
+		anim_speed -= ANIM_DELTA;
 		if(anim_speed < 0)
 			anim_speed = 0;
+		start_time += calc_timeshift(prev_anim_speed, anim_speed);
 		break;
 	default:
 		break;
