@@ -3,6 +3,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <math.h>
 
 #include "sdr.h"
 
@@ -17,6 +18,16 @@
 #define BEAM_ENERGY 0.02
 #define BEAM_LEN 16.0
 
+#define BEAM_START_ANGLE 180
+#define BEAM_STOP_ANGLE 359
+
+enum State {
+	ST_DEFAULT,
+	ST_CAM_WAIT,
+	ST_CAM_STOP,
+	ST_XLOGO
+};
+
 static bool init();
 static void cleanup();
 
@@ -26,6 +37,8 @@ static void ground();
 static void backdrop();
 static void xlogo();
 
+static void update_anim();
+
 static void display();
 static void idle();
 static void reshape(int x, int y);
@@ -33,12 +46,18 @@ static void keyboard(unsigned char c, int x, int y);
 static void mbutton(int bn, int state, int x, int y);
 static void mmotion(int x, int y);
 
+static inline float smoothstep(float a, float b, float x);
+
 static float cam_theta = 45, cam_phi, cam_dist = 10;
 static unsigned int sdr_curve_top, sdr_beam, sdr_sky;
 static long start_time;
 static float anim_speed = 1.0;
 static long anim_stop_time;
 static long tmsec;
+static float beam_speed = 0.1;
+static float beam_angle;
+static float prev_beam_angle;
+static State state;
 
 static const float sil_color[] = {0.05, 0.02, 0.1, 1.0};
 static const float beam_color[] = {0.5, 0.4, 0.2, 1.0};
@@ -235,6 +254,48 @@ static void backdrop()
 	glFrontFace(GL_CCW);
 }
 
+static void xlogo()
+{
+	glPushMatrix();
+
+	glPopMatrix();
+}
+
+static void update_anim(long tmsec)
+{
+	static float beam_start_time;
+	static float beam_stop_interval;
+
+	float tsec = (float)tmsec / 1000.0;
+	float tanim = tsec * anim_speed;
+
+	if(state == ST_CAM_WAIT) {
+		if(beam_angle >= BEAM_START_ANGLE && prev_beam_angle < BEAM_START_ANGLE) {
+			state = ST_CAM_STOP;
+			printf("func: %s\n", __func__);
+			printf("state from wait to stop (ba: %f)\n", beam_angle);
+			beam_start_time = tmsec;
+			beam_stop_interval = beam_angle / beam_speed; // 400 / beam_speed;
+			printf("  stop interval: %f\n", beam_stop_interval);
+		}
+	}
+	if(state == ST_CAM_STOP) {
+		float t = smoothstep(beam_start_time, beam_start_time + beam_stop_interval, tmsec);
+		prev_beam_angle = beam_angle;
+		beam_angle = BEAM_START_ANGLE + (BEAM_STOP_ANGLE - BEAM_START_ANGLE) * t;
+
+		if(t >= 1) {
+			printf("state from stop to xlogo\n");
+			state = ST_XLOGO;
+		}
+	} else if(state == ST_XLOGO) {
+		
+	} else {
+		prev_beam_angle = beam_angle;
+		beam_angle = fmod(tanim * beam_speed * 360, 360.0);
+	}
+}
+
 static void display()
 {
 	if(anim_stop_time > 0) {
@@ -243,8 +304,7 @@ static void display()
 		tmsec = (long)glutGet(GLUT_ELAPSED_TIME) - start_time;
 	}
 
-	float tsec = (float)tmsec / 1000.0;
-	float tanim = tsec * anim_speed;
+	update_anim(tmsec);
 
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	backdrop();
@@ -261,7 +321,6 @@ static void display()
 
 	glPushMatrix();
 
-	float beam_angle = tanim * 0.1 * 360;
 	glRotatef(beam_angle, 0, 1, 0);
 	light();
 
@@ -322,6 +381,24 @@ static void keyboard(unsigned char c, int x, int y)
 			anim_speed = 0;
 		start_time += calc_timeshift(prev_anim_speed, anim_speed);
 		break;
+
+	case '\n':
+	case '\r':
+		switch(state) {
+		case ST_DEFAULT:
+			state = ST_CAM_WAIT;
+			prev_beam_angle = beam_angle;
+			printf("from default to cam_wait\n");
+			break;
+		case ST_XLOGO:
+			printf("from xlogo to default\n");
+			state = ST_DEFAULT;
+			start_time = tmsec;
+			break;
+		default:
+			break;
+		}
+		break;
 	default:
 		break;
 	}
@@ -366,4 +443,13 @@ static void mmotion(int x, int y)
 		if (cam_dist < 0)
 			cam_dist = 0;
 	}
+}
+
+static inline float smoothstep(float a, float b, float x)
+{
+	if(x < a) return 0.0f;
+	if(x >= b) return 1.0f;
+
+	x = (x - a) / (b - a);
+	return x * x * (3.0f - 2.0f * x);
 }
