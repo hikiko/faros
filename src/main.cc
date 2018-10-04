@@ -257,6 +257,10 @@ static void keyboard(unsigned char c, int x, int y)
 		}
 		break;
 
+	case '`':
+		dump_seq("seq_dump");
+		break;
+
 	default:
 		break;
 	}

@@ -13,7 +13,7 @@ CXX = g++
 CC = gcc
 CXXFLAGS = -pedantic -Wall $(dbg) $(opt) $(inc)
 CFLAGS = $(CXXFLAGS)
-LDFLAGS = -lGL -lGLU -lglut -lGLEW -limago -lassimp
+LDFLAGS = -lGL -lGLU -lglut -lGLEW -limago -ltreestore
 
 $(bin): $(obj)
 	$(CXX) -o $@ $(obj) $(LDFLAGS)

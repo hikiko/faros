@@ -34,9 +34,15 @@ public:
 	Track();
 
 	void clear();
+	bool empty() const;
 
-	void set_key(long tm, float val);
-	float get_key(long tm) const;
+	int get_num_keys() const;
+
+	const TrackKey &operator [](int idx) const;
+	TrackKey &operator [](int idx);
+
+	void set_value(long tm, float val);
+	float get_value(long tm) const;
 	int find_key(long tm) const;
 
 	float operator ()(long tm) const;

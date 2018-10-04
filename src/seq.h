@@ -19,5 +19,6 @@ float get_seq_value(int idx, long tm);
 float get_seq_value(const char *name, long tm);
 
 bool load_seq(const char *fname);
+bool dump_seq(const char *fname);
 
 #endif	/* ANIM_H_ */

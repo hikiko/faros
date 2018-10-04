@@ -18,7 +18,27 @@ void Track::clear()
 	keys.clear();
 }
 
-void Track::set_key(long tm, float val)
+bool Track::empty() const
+{
+	return keys.empty();
+}
+
+int Track::get_num_keys() const
+{
+	return (int)keys.size();
+}
+
+const TrackKey &Track::operator [](int idx) const
+{
+	return keys[idx];
+}
+
+TrackKey &Track::operator [](int idx)
+{
+	return keys[idx];
+}
+
+void Track::set_value(long tm, float val)
 {
 	int idx = find_key(tm);
 	if(idx >= 0) {
@@ -31,7 +51,7 @@ void Track::set_key(long tm, float val)
 	keys_sorted = false;
 }
 
-float Track::get_key(long tm) const
+float Track::get_value(long tm) const
 {
 	int idx = find_key(tm);
 	if(idx == -1) return 0.0f;
