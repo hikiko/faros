@@ -3,64 +3,42 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-#include <math.h>
+#include <assert.h>
 
 #include "sdr.h"
-
-#define CURVE_VS "sdr/curve_top.v.glsl"
-#define CURVE_FS "sdr/curve_top.f.glsl"
-#define BEAM_VS "sdr/beam.v.glsl"
-#define BEAM_FS "sdr/beam.f.glsl"
+#include "geom.h"
+#include "seq.h"
 
 #define BEAM_SHELLS 40
 #define BEAM_RMIN 0.01
 #define BEAM_RMAX 0.125
 #define BEAM_ENERGY 0.02
 #define BEAM_LEN 16.0
-
-#define BEAM_START_ANGLE 180
-#define BEAM_STOP_ANGLE 359
-
-enum State {
-	ST_DEFAULT,
-	ST_CAM_WAIT,
-	ST_CAM_STOP,
-	ST_XLOGO
-};
+#define BEAM_DEF_SPEED	0.1
 
 static bool init();
 static void cleanup();
 
-static void faros();
-static void light();
-static void ground();
-static void backdrop();
-static void xlogo();
-
-static void update_anim();
-
 static void display();
+static void light();
+static void backdrop();
+
 static void idle();
 static void reshape(int x, int y);
 static void keyboard(unsigned char c, int x, int y);
 static void mbutton(int bn, int state, int x, int y);
 static void mmotion(int x, int y);
 
-static inline float smoothstep(float a, float b, float x);
-
 static float cam_theta = 45, cam_phi, cam_dist = 10;
-static unsigned int sdr_curve_top, sdr_beam, sdr_sky;
+static unsigned int sdr_beam, sdr_sky;
 static long start_time;
-static float anim_speed = 1.0;
 static long anim_stop_time;
-static long tmsec;
-static float beam_speed = 0.1;
-static float beam_angle;
-static float prev_beam_angle;
-static State state;
+static long tmsec, prev_tmsec;
 
 static const float sil_color[] = {0.05, 0.02, 0.1, 1.0};
 static const float beam_color[] = {0.5, 0.4, 0.2, 1.0};
+
+static float beam_angle, beam_speed;
 
 int main(int argc, char **argv)
 {
@@ -100,105 +78,67 @@ static bool init()
 
 	glEnable(GL_NORMALIZE);
 
-	if(!(sdr_curve_top = create_program_load(CURVE_VS, CURVE_FS)))
+	if(!init_geom()) {
 		return false;
-
-	if(!(sdr_beam = create_program_load(BEAM_VS, BEAM_FS)))
+	}
+	if(!(sdr_beam = create_program_load("sdr/beam.v.glsl", "sdr/beam.f.glsl")))
 		return false;
 
 	if(!(sdr_sky = create_program_load("sdr/sky.v.glsl", "sdr/sky.f.glsl"))) {
 		return false;
 	}
 
+	if(!init_seq()) {
+		return false;
+	}
+	add_seq_track("beam-speed", INTERP_SIGMOID, EXTRAP_CLAMP, BEAM_DEF_SPEED);
+	load_seq("seq");
+
 	start_time = glutGet(GLUT_ELAPSED_TIME);
+	prev_tmsec = start_time;
 	return true;
 }
 
 static void cleanup()
 {
+	destroy_seq();
+	destroy_geom();
+	free_program(sdr_beam);
+	free_program(sdr_sky);
 }
 
-static void faros()
+static void display()
 {
+	tmsec = (long)glutGet(GLUT_ELAPSED_TIME) - start_time;
+	float dt = (tmsec - prev_tmsec) / 1000.0f;
+	prev_tmsec = tmsec;
+
+	if(anim_stop_time) dt = 0.0f;
+
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	backdrop();
+
+	glMatrixMode(GL_MODELVIEW);
+	glLoadIdentity();
+
+	glTranslatef(0, -2, -cam_dist);
+	glRotatef(cam_phi, 1, 0, 0);
+	glRotatef(cam_theta, 0, 1, 0);
+
 	glColor3fv(sil_color);
-
-	// kormos
-	glPushMatrix();
-	glScalef(1.1, 3, 1.1);
-	glTranslatef(0, 0.5, 0);
-	glutSolidCube(1.0);
-	glPopMatrix();
-
-	glShadeModel(GL_FLAT);
-
-	// base
-	glPushMatrix();
-	glRotatef(90, 1, 0, 0);
-	glTranslatef(0, -0.15, 0);
-	glutSolidCylinder(2, 0.3, 16, 1);
-	glPopMatrix();
-
-	// middle cylinder
-	glPushMatrix();
-	glTranslatef(0, 3, 0);
-	glRotatef(22.5, 0, 1, 0);
-	glRotatef(-90, 1, 0, 0);
-	glutSolidCylinder(0.5, 1.0, 8, 1);
-	glPopMatrix();
-
-	// trim middle cylinder (mporntoura)
-	glPushMatrix();
-	glTranslatef(0, 3.9, 0);
-	glRotatef(22.5, 0, 1, 0);
-	glRotatef(-90, 1, 0, 0);
-	glutSolidCylinder(0.55, 0.02, 8, 1);
-	glPopMatrix();
-
-	// top smaller cylinder
-	glPushMatrix();
-	glTranslatef(0, 4, 0);
-	glRotatef(22.5, 0, 1, 0);
-	glRotatef(-90, 1, 0, 0);
-	glutSolidCylinder(0.28, 0.5, 8, 1);
-	glPopMatrix();
-
-	// top wire even smaller cylinder
-	glPushMatrix();
-	glTranslatef(0, 4.5, 0);
-	glRotatef(22.5, 0, 1, 0);
-	glRotatef(-90, 1, 0, 0);
-	glutWireCylinder(0.18, 0.3, 9, 3);
-	glPopMatrix();
-
-	glShadeModel(GL_SMOOTH);
-
-	// top troulos
-	glPushMatrix();
-	glTranslatef(0, 4.8, 0);
-	glRotatef(22.5, 0, 1, 0);
-	glRotatef(-90, 1, 0, 0);
-	glutSolidCone(0.18, 0.2, 9, 1);
-	glPopMatrix();
-
-	// tsamploukano
-	glPushMatrix();
-	glTranslatef(-0.28, 4, 0);
-	glScalef(1, 13, 1);
-	glutSolidSphere(0.1, 16, 16);
-	glPopMatrix();
-
-	//pyramid on top of kormos
-	bind_program(sdr_curve_top);
+	ground();
+	faros();
 
 	glPushMatrix();
-	glTranslatef(0, 3, 0);
-	glRotatef(45, 0, 1, 0);
-	glRotatef(-90, 1, 0, 0);
-	glScalef(1, 1, 0.45);
-	glutSolidCylinder(1, 1, 4, 16);
+
+	beam_speed = get_seq_value("beam-speed", tmsec);
+	beam_angle += beam_speed * 360.0f * dt;
+	glRotatef(beam_angle, 0, 1, 0);
+	light();
+
 	glPopMatrix();
 
-	bind_program(0);
+	glutSwapBuffers();
 }
 
 static void light()
@@ -232,19 +172,6 @@ static void light()
 	glPopAttrib();
 }
 
-static void ground()
-{
-	glPushMatrix();
-
-	glTranslatef(0, -1.25, 0);
-	glScalef(1, 0.1, 1);
-
-	glColor3fv(sil_color);
-	glutSolidSphere(10, 32, 32);
-
-	glPopMatrix();
-}
-
 static void backdrop()
 {
 	glFrontFace(GL_CW);
@@ -254,80 +181,7 @@ static void backdrop()
 	glFrontFace(GL_CCW);
 }
 
-static void xlogo()
-{
-	glPushMatrix();
 
-	glPopMatrix();
-}
-
-static void update_anim(long tmsec)
-{
-	static float beam_start_time;
-	static float beam_stop_interval;
-
-	float tsec = (float)tmsec / 1000.0;
-	float tanim = tsec * anim_speed;
-
-	if(state == ST_CAM_WAIT) {
-		if(beam_angle >= BEAM_START_ANGLE && prev_beam_angle < BEAM_START_ANGLE) {
-			state = ST_CAM_STOP;
-			printf("func: %s\n", __func__);
-			printf("state from wait to stop (ba: %f)\n", beam_angle);
-			beam_start_time = tmsec;
-			beam_stop_interval = beam_angle / beam_speed; // 400 / beam_speed;
-			printf("  stop interval: %f\n", beam_stop_interval);
-		}
-	}
-	if(state == ST_CAM_STOP) {
-		float t = smoothstep(beam_start_time, beam_start_time + beam_stop_interval, tmsec);
-		prev_beam_angle = beam_angle;
-		beam_angle = BEAM_START_ANGLE + (BEAM_STOP_ANGLE - BEAM_START_ANGLE) * t;
-
-		if(t >= 1) {
-			printf("state from stop to xlogo\n");
-			state = ST_XLOGO;
-		}
-	} else if(state == ST_XLOGO) {
-		
-	} else {
-		prev_beam_angle = beam_angle;
-		beam_angle = fmod(tanim * beam_speed * 360, 360.0);
-	}
-}
-
-static void display()
-{
-	if(anim_stop_time > 0) {
-		tmsec = anim_stop_time - start_time;
-	} else {
-		tmsec = (long)glutGet(GLUT_ELAPSED_TIME) - start_time;
-	}
-
-	update_anim(tmsec);
-
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	backdrop();
-
-	glMatrixMode(GL_MODELVIEW);
-	glLoadIdentity();
-
-	glTranslatef(0, -2, -cam_dist);
-	glRotatef(cam_phi, 1, 0, 0);
-	glRotatef(cam_theta, 0, 1, 0);
-
-	ground();
-	faros();
-
-	glPushMatrix();
-
-	glRotatef(beam_angle, 0, 1, 0);
-	light();
-
-	glPopMatrix();
-
-	glutSwapBuffers();
-}
 
 static void idle()
 {
@@ -344,25 +198,29 @@ static void reshape(int x, int y)
 	gluPerspective(50, (float)x / (float)y, 0.5, 500);
 }
 
-static long calc_timeshift(float prev_speed, float speed)
-{
-	long delta = tmsec * speed - tmsec * prev_speed;
-	return delta / speed;
-}
-
 #define ANIM_DELTA	0.5
 
 static void keyboard(unsigned char c, int x, int y)
 {
-	float prev_anim_speed;
+	int idx;
+	static float orig_beam_speed;
 
 	switch(c) {
 	case 27:
 		exit(0);
 
+	case '\b':
+		start_time = glutGet(GLUT_ELAPSED_TIME);
+		prev_tmsec = 0;
+		anim_stop_time = 0;
+		beam_angle = 0;
+		break;
+
 	case ' ':
 		if(anim_stop_time > 0) {
-			start_time += glutGet(GLUT_ELAPSED_TIME) - anim_stop_time;
+			long msec = glutGet(GLUT_ELAPSED_TIME);
+			start_time += msec - anim_stop_time;
+			prev_tmsec = msec - start_time;
 			anim_stop_time = 0;
 		} else {
 			anim_stop_time = glutGet(GLUT_ELAPSED_TIME);
@@ -370,35 +228,35 @@ static void keyboard(unsigned char c, int x, int y)
 		break;
 
 	case '=':
-		start_time += calc_timeshift(anim_speed, anim_speed + ANIM_DELTA);
-		anim_speed += ANIM_DELTA;
+		beam_speed = get_seq_value("beam-speed", tmsec);
+		clear_seq_track("beam-speed");
+		set_seq_value("beam-speed", tmsec, beam_speed + ANIM_DELTA);
 		break;
 
 	case '-':
-		prev_anim_speed = anim_speed;
-		anim_speed -= ANIM_DELTA;
-		if(anim_speed < 0)
-			anim_speed = 0;
-		start_time += calc_timeshift(prev_anim_speed, anim_speed);
+		beam_speed = get_seq_value("beam-speed", tmsec) - ANIM_DELTA;
+		if(beam_speed < 0)
+			beam_speed = 0;
+		clear_seq_track("beam-speed");
+		set_seq_value("beam-speed", tmsec, beam_speed);
 		break;
 
-	case '\n':
 	case '\r':
-		switch(state) {
-		case ST_DEFAULT:
-			state = ST_CAM_WAIT;
-			prev_beam_angle = beam_angle;
-			printf("from default to cam_wait\n");
-			break;
-		case ST_XLOGO:
-			printf("from xlogo to default\n");
-			state = ST_DEFAULT;
-			start_time = tmsec;
-			break;
-		default:
-			break;
+	case '\n':
+		idx = find_seq_track("beam-speed");
+		assert(idx >= 0);
+		if(get_seq_value(idx, tmsec) > 0.0) {
+			clear_seq_track(idx);
+			set_seq_value(idx, tmsec, beam_speed);
+			set_seq_value(idx, tmsec + 3000, 0);
+			orig_beam_speed = beam_speed;
+		} else {
+			clear_seq_track(idx);
+			set_seq_value(idx, tmsec, 0);
+			set_seq_value(idx, tmsec + 3000, orig_beam_speed);
 		}
 		break;
+
 	default:
 		break;
 	}
@@ -443,13 +301,4 @@ static void mmotion(int x, int y)
 		if (cam_dist < 0)
 			cam_dist = 0;
 	}
-}
-
-static inline float smoothstep(float a, float b, float x)
-{
-	if(x < a) return 0.0f;
-	if(x >= b) return 1.0f;
-
-	x = (x - a) / (b - a);
-	return x * x * (3.0f - 2.0f * x);
 }
