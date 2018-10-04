@@ -258,7 +258,10 @@ static void keyboard(unsigned char c, int x, int y)
 		break;
 
 	case '`':
-		dump_seq("seq_dump");
+		printf("dumping animation data to: seq_dump\n");
+		if(!dump_seq("seq_dump")) {
+			fprintf(stderr, "dump failed\n");
+		}
 		break;
 
 	default:

@@ -196,10 +196,11 @@ bool dump_seq(const char *fname)
 	fprintf(fp, "faros {\n");
 	int ntrk = tracks.size();
 	for(int i=0; i<ntrk; i++) {
+		int nkeys = tracks[i].track->get_num_keys();
+		if(!nkeys) continue;
+
 		fprintf(fp, "  track {\n");
 		fprintf(fp, "    name = \"%s\"\n", tracks[i].name);
-
-		int nkeys = tracks[i].track->get_num_keys();
 		for(int j=0; j<nkeys; j++) {
 			TrackKey key = (*tracks[i].track)[j];
 			fprintf(fp, "    key {\n");
