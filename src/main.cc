@@ -321,7 +321,6 @@ static void help()
 		"   RMB drag/wheel . zoom",
 		"   c .............. toggle free/animated camera",
 		"   v .............. print current view parameters",
-		"",
 		"Animation control",
 		"   <space> ........ pause time",
 		"   <backspace> .... restart time",
@@ -337,6 +336,8 @@ static void help()
 		"   P .............. toggle paper",
 		"   <shift>-P ...... clear paper keyframes",
 		"   ~ .............. dump all animation keyframes to seq_dump",
+		"Other",
+		"   F5 ............. toggle UI",
 		0
 	};
 
@@ -378,7 +379,7 @@ static void help()
 			glutBitmapCharacter(GLUT_BITMAP_9_BY_15, *s++);
 		}
 
-		ypos += 25;
+		ypos += 22;
 	}
 
 	glPopMatrix();
