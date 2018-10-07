@@ -13,6 +13,9 @@ Track *get_seq_track(int idx);
 void clear_seq_track(int idx);
 void clear_seq_track(const char *name);
 
+bool seq_track_empty(int idx);
+bool seq_track_empty(const char *name);
+
 void set_seq_value(int idx, long tm, float val);
 void set_seq_value(const char *name, long tm, float val);
 float get_seq_value(int idx, long tm);

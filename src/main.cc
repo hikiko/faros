@@ -9,6 +9,7 @@
 #include "sdr.h"
 #include "geom.h"
 #include "seq.h"
+#include "ui.h"
 
 #define BEAM_SHELLS 40
 #define BEAM_RMIN 0.01
@@ -38,14 +39,15 @@ static void keyb_special(int key, int x, int y);
 static void mbutton(int bn, int state, int x, int y);
 static void mmotion(int x, int y);
 
-static int win_width, win_height;
+int win_width, win_height;
 static bool freecam = true;
 
 static Camera cam = {0, 0, 0, 0, 0, 10};
 static unsigned int sdr_beam, sdr_sky;
 static long start_time;
 static long anim_stop_time;
-static long tmsec, prev_tmsec;
+long tmsec, prev_tmsec, anim_time;
+bool anim_stopped;
 
 static const float sil_color[] = {0.05, 0.02, 0.1, 1.0};
 static const float beam_color[] = {0.5, 0.4, 0.2, 1.0};
@@ -54,7 +56,7 @@ static float beam_angle, beam_speed;
 static float beam_len;
 static float xlogo_alpha;
 
-static bool show_help;
+static bool show_help, show_ui = true;
 
 int main(int argc, char **argv)
 {
@@ -117,7 +119,10 @@ static bool init()
 	add_seq_track("cam-y", INTERP_SIGMOID, EXTRAP_CLAMP, 0);
 	add_seq_track("cam-z", INTERP_SIGMOID, EXTRAP_CLAMP, 0);
 	add_seq_track("xlogo", INTERP_SIGMOID, EXTRAP_CLAMP, 0);
+	add_seq_track("xcircle", INTERP_SIGMOID, EXTRAP_CLAMP, 1);
 	load_seq("seq");
+
+	freecam = seq_track_empty("cam-theta");
 
 	start_time = glutGet(GLUT_ELAPSED_TIME);
 	prev_tmsec = start_time;
@@ -138,7 +143,11 @@ static void display()
 	float dt = (tmsec - prev_tmsec) / 1000.0f;
 	prev_tmsec = tmsec;
 
-	if(anim_stop_time) dt = 0.0f;
+	anim_time = tmsec;
+	if(anim_stopped) {
+		dt = 0.0f;
+		anim_time = anim_stop_time - start_time;
+	}
 
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	backdrop();
@@ -147,12 +156,12 @@ static void display()
 	glLoadIdentity();
 
 	if(!freecam) {
-		cam.dist = get_seq_value("cam-dist", tmsec);
-		cam.phi = get_seq_value("cam-phi", tmsec);
-		cam.theta = get_seq_value("cam-theta", tmsec);
-		cam.x = get_seq_value("cam-x", tmsec);
-		cam.y = get_seq_value("cam-y", tmsec);
-		cam.z = get_seq_value("cam-z", tmsec);
+		cam.dist = get_seq_value("cam-dist", anim_time);
+		cam.phi = get_seq_value("cam-phi", anim_time);
+		cam.theta = get_seq_value("cam-theta", anim_time);
+		cam.x = get_seq_value("cam-x", anim_time);
+		cam.y = get_seq_value("cam-y", anim_time);
+		cam.z = get_seq_value("cam-z", anim_time);
 	}
 
 	glTranslatef(0, -2, -cam.dist);
@@ -164,19 +173,20 @@ static void display()
 	ground();
 	faros();
 
-	beam_len = get_seq_value("beam-len", tmsec);
-	beam_speed = get_seq_value("beam-speed", tmsec);
+	beam_len = get_seq_value("beam-len", anim_time);
+	beam_speed = get_seq_value("beam-speed", anim_time);
 	beam_angle += beam_speed * 360.0f * dt;
 
-	xlogo_alpha = get_seq_value("xlogo", tmsec);
+	xlogo_alpha = get_seq_value("xlogo", anim_time);
+	float xcircle = get_seq_value("xcircle", anim_time);
+
 	if(xlogo_alpha > 0.0) {
 		glPushMatrix();
 		float beam_angle_rad = beam_angle / 180.0 * M_PI;
 		float xlogo_dist = beam_len;
 		float xlogo_pos[3] = {sin(beam_angle_rad), 0, cos(beam_angle_rad)};
-		glTranslatef(xlogo_pos[0] * xlogo_dist, xlogo_pos[1] * xlogo_dist + 5, xlogo_pos[2] * xlogo_dist);
-		glColor4f(0, 0, 0, xlogo_alpha);
-		xlogo();
+		glTranslatef(xlogo_pos[0] * xlogo_dist, xlogo_pos[1] * xlogo_dist + 4.7, xlogo_pos[2] * xlogo_dist);
+		xlogo(0.5, xlogo_alpha, xcircle);
 		glPopMatrix();
 	}
 
@@ -184,6 +194,10 @@ static void display()
 	glRotatef(beam_angle, 0, 1, 0);
 	light();
 	glPopMatrix();
+
+	if(show_ui) {
+		ui();
+	}
 
 	if(show_help) {
 		help();
@@ -241,7 +255,7 @@ static void help()
 {
 	static const char *help_lines[] = {
 		"Camera control",
-		"   LMB ............ rotate",
+		"   LMB drag ....... rotate",
 		"   MMB drag ....... pan",
 		"   RMB drag/wheel . zoom",
 		"   c .............. toggle free/animated camera",
@@ -333,7 +347,7 @@ static void keyboard(unsigned char c, int x, int y)
 	int idx;
 	static float orig_beam_speed;
 	static Camera orig_cam;
-	long anim_time = anim_stop_time ? anim_stop_time - start_time : tmsec;
+	long anim_time = anim_stopped ? anim_stop_time - start_time : tmsec;
 
 	switch(c) {
 	case 27:
@@ -342,18 +356,20 @@ static void keyboard(unsigned char c, int x, int y)
 	case '\b':
 		start_time = glutGet(GLUT_ELAPSED_TIME);
 		prev_tmsec = 0;
-		anim_stop_time = 0;
+		anim_stop_time = anim_stopped ? start_time : 0;
 		beam_angle = 0;
 		break;
 
 	case ' ':
-		if(anim_stop_time > 0) {
+		if(anim_stopped) {
 			long msec = glutGet(GLUT_ELAPSED_TIME);
 			start_time += msec - anim_stop_time;
 			prev_tmsec = msec - start_time;
 			anim_stop_time = 0;
+			anim_stopped = false;
 		} else {
 			anim_stop_time = glutGet(GLUT_ELAPSED_TIME);
+			anim_stopped = true;
 		}
 		break;
 
@@ -466,6 +482,10 @@ static void keyb_special(int key, int x, int y)
 	switch(key) {
 	case GLUT_KEY_F1:
 		show_help = !show_help;
+		break;
+
+	case GLUT_KEY_F5:
+		show_ui = !show_ui;
 		break;
 
 	default:

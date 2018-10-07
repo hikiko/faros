@@ -6,6 +6,6 @@ void destroy_geom();
 
 void faros();
 void ground();
-void xlogo();
+void xlogo(float sz, float alpha, float xcircle);
 
 #endif	/* GEOM_H_ */

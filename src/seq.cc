@@ -78,16 +78,31 @@ void clear_seq_track(const char *name)
 	}
 }
 
+bool seq_track_empty(int idx)
+{
+	return tracks[idx].track->empty();
+}
+
+bool seq_track_empty(const char *name)
+{
+	int idx = find_seq_track(name);
+	if(idx >= 0) {
+		return tracks[idx].track->empty();
+	}
+	return true;
+}
+
 void set_seq_value(int idx, long tm, float val)
 {
 	tracks[idx].track->set_value(tm, val);
+	printf("track(%d): set keyframe %ld -> %f\n", idx, tm, val);
 }
 
 void set_seq_value(const char *name, long tm, float val)
 {
 	int idx = find_seq_track(name);
 	if(idx >= 0) {
-		tracks[idx].track->set_value(tm, val);
+		set_seq_value(idx, tm, val);
 	}
 }
 
@@ -199,16 +214,16 @@ bool dump_seq(const char *fname)
 		int nkeys = tracks[i].track->get_num_keys();
 		if(!nkeys) continue;
 
-		fprintf(fp, "  track {\n");
-		fprintf(fp, "    name = \"%s\"\n", tracks[i].name);
+		fprintf(fp, "\ttrack {\n");
+		fprintf(fp, "\t\tname = \"%s\"\n", tracks[i].name);
 		for(int j=0; j<nkeys; j++) {
 			TrackKey key = (*tracks[i].track)[j];
-			fprintf(fp, "    key {\n");
-			fprintf(fp, "      time = %ld\n", key.time);
-			fprintf(fp, "      value = %g\n", key.value);
-			fprintf(fp, "    }\n");
+			fprintf(fp, "\t\tkey {\n");
+			fprintf(fp, "\t\t\ttime = %ld\n", key.time);
+			fprintf(fp, "\t\t\tvalue = %g\n", key.value);
+			fprintf(fp, "\t\t}\n");
 		}
-		fprintf(fp, "  }\n\n");
+		fprintf(fp, "\t}\n\n");
 	}
 	fprintf(fp, "}\n");
 	fclose(fp);
