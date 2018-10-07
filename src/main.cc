@@ -17,6 +17,11 @@
 #define BEAM_ENERGY 0.01
 #define BEAM_LEN 16.0
 #define BEAM_DEF_SPEED	0.1
+#define BEAM_HEIGHT		4.65
+
+#define XLOGO_RAD	0.5
+
+#define LERP(a, b, t)	((a) + ((b) - (a)) * (t))
 
 struct Camera {
 	float x, y, z;
@@ -29,7 +34,8 @@ static void cleanup();
 
 static void display();
 static void light();
-static void backdrop();
+static void paper_light();
+static void backdrop(float alpha);
 static void help();
 
 static void idle();
@@ -50,11 +56,14 @@ long tmsec, prev_tmsec, anim_time;
 bool anim_stopped;
 
 static const float sil_color[] = {0.05, 0.02, 0.1, 1.0};
+static const float ink_color[] = {0.05, 0.15, 0.3, 1.0};
 static const float beam_color[] = {0.5, 0.4, 0.2, 1.0};
+static const float paper_color[] = {0.9, 0.8, 0.8, 1.0};
 
 static float beam_angle, beam_speed;
 static float beam_len;
-static float xlogo_alpha;
+static float xlogo_alpha, xcircle;
+static float paper;
 
 static bool show_help, show_ui = true;
 
@@ -120,9 +129,12 @@ static bool init()
 	add_seq_track("cam-z", INTERP_SIGMOID, EXTRAP_CLAMP, 0);
 	add_seq_track("xlogo", INTERP_SIGMOID, EXTRAP_CLAMP, 0);
 	add_seq_track("xcircle", INTERP_SIGMOID, EXTRAP_CLAMP, 1);
+	add_seq_track("paper", INTERP_SIGMOID, EXTRAP_CLAMP, 0);
 	load_seq("seq");
 
 	freecam = seq_track_empty("cam-theta");
+
+	glClearColor(paper_color[0], paper_color[1], paper_color[2], 1);
 
 	start_time = glutGet(GLUT_ELAPSED_TIME);
 	prev_tmsec = start_time;
@@ -149,8 +161,10 @@ static void display()
 		anim_time = anim_stop_time - start_time;
 	}
 
+	paper = get_seq_value("paper", anim_time);
+
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	backdrop();
+	backdrop(1.0f - paper);
 
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
@@ -169,7 +183,12 @@ static void display()
 	glRotatef(cam.theta, 0, 1, 0);
 	glTranslatef(-cam.x, -cam.y, -cam.z);
 
-	glColor3fv(sil_color);
+	float color[3];
+	color[0] = LERP(sil_color[0], ink_color[0], paper);
+	color[1] = LERP(sil_color[1], ink_color[1], paper);
+	color[2] = LERP(sil_color[2], ink_color[2], paper);
+
+	glColor3fv(color);
 	ground();
 	faros();
 
@@ -178,15 +197,15 @@ static void display()
 	beam_angle += beam_speed * 360.0f * dt;
 
 	xlogo_alpha = get_seq_value("xlogo", anim_time);
-	float xcircle = get_seq_value("xcircle", anim_time);
+	xcircle = get_seq_value("xcircle", anim_time);
 
 	if(xlogo_alpha > 0.0) {
 		glPushMatrix();
 		float beam_angle_rad = beam_angle / 180.0 * M_PI;
 		float xlogo_dist = beam_len;
 		float xlogo_pos[3] = {sin(beam_angle_rad), 0, cos(beam_angle_rad)};
-		glTranslatef(xlogo_pos[0] * xlogo_dist, xlogo_pos[1] * xlogo_dist + 4.7, xlogo_pos[2] * xlogo_dist);
-		xlogo(0.5, xlogo_alpha, xcircle);
+		glTranslatef(xlogo_pos[0] * xlogo_dist, xlogo_pos[1] * xlogo_dist + BEAM_HEIGHT, xlogo_pos[2] * xlogo_dist);
+		xlogo(XLOGO_RAD, color, paper_color, xlogo_alpha, xcircle);
 		glPopMatrix();
 	}
 
@@ -194,6 +213,8 @@ static void display()
 	glRotatef(beam_angle, 0, 1, 0);
 	light();
 	glPopMatrix();
+
+	paper_light();
 
 	if(show_ui) {
 		ui();
@@ -208,12 +229,15 @@ static void display()
 
 static void light()
 {
+	float beam_alpha = 1.0 - paper;
+	if(beam_alpha <= 0.0f) return;
+
 	glPushAttrib(GL_ENABLE_BIT);
 	glDisable(GL_CULL_FACE);
 
 	glPushMatrix();
 
-	glTranslatef(0, 4.65, 0.2);
+	glTranslatef(0, BEAM_HEIGHT, 0.2);
 	bind_program(sdr_beam);
 	set_uniform_float(sdr_beam, "beam_len", beam_len);
 
@@ -228,7 +252,7 @@ static void light()
 		float alpha = BEAM_ENERGY / (t * t);
 
 		if(i == 0) continue;
-		glColor4f(beam_color[0], beam_color[1], beam_color[2], alpha);
+		glColor4f(beam_color[0], beam_color[1], beam_color[2], alpha * beam_alpha);
 
 		glutSolidCylinder(rad, beam_len, 12, 1);
 	}
@@ -242,13 +266,50 @@ static void light()
 	glPopAttrib();
 }
 
-static void backdrop()
+static void paper_light()
 {
+	glPushAttrib(GL_ENABLE_BIT);
+	glDisable(GL_CULL_FACE);
+
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+	glPushMatrix();
+	glRotatef(beam_angle, 0, 1, 0);
+	glTranslatef(0, BEAM_HEIGHT, 0.3);
+
+	float rad = BEAM_RMIN + (BEAM_RMAX - BEAM_RMIN) * 0.6f;
+	float maxdist = beam_len - 0.6f;
+	float end_rad = XLOGO_RAD * 0.4;
+
+	glLineWidth(3);
+	glBegin(GL_LINES);
+	glColor4f(ink_color[0], ink_color[1], ink_color[2], paper);
+
+	glVertex3f(0, rad, 0);
+	glVertex3f(0, end_rad, maxdist);
+	glVertex3f(0, -rad, 0);
+	glVertex3f(0, -end_rad, maxdist);
+	glEnd();
+
+	glPopMatrix();
+	glPopAttrib();
+}
+
+static void backdrop(float alpha)
+{
+	glPushAttrib(GL_ENABLE_BIT);
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
 	glFrontFace(GL_CW);
 	bind_program(sdr_sky);
+	set_uniform_float(sdr_sky, "alpha", alpha);
 	glutSolidSphere(200, 16, 32);
 	bind_program(0);
 	glFrontFace(GL_CCW);
+
+	glPopAttrib();
 }
 
 static void help()
@@ -268,11 +329,13 @@ static void help()
 		"   0 .............. clear beam rotation keyframes",
 		"   [/] ............ change beam length and set keyframe",
 		"   \\ .............. clear beam length keyframes",
-		"   <enter> ........ record automatic beam start/stop transition",
+		"   <enter> ........ record automatic beam stop transition",
 		"   K .............. set camera keyframe",
 		"   <shift>-L ...... clear all camera keyframes",
-		"   X .............. toggle X logo and set keyframe",
-		"   <shift>-X ...... clear logo keyframes",
+		"   X/Z ............ toggle X logo/circle and set keyframe",
+		"   <shift>-X/Z .... clear logo/circle keyframes",
+		"   P .............. toggle paper",
+		"   <shift>-P ...... clear paper keyframes",
 		"   ~ .............. dump all animation keyframes to seq_dump",
 		0
 	};
@@ -345,7 +408,6 @@ static void reshape(int x, int y)
 static void keyboard(unsigned char c, int x, int y)
 {
 	int idx;
-	static float orig_beam_speed;
 	static Camera orig_cam;
 	long anim_time = anim_stopped ? anim_stop_time - start_time : tmsec;
 
@@ -407,16 +469,8 @@ static void keyboard(unsigned char c, int x, int y)
 	case '\n':
 		idx = find_seq_track("beam-speed");
 		assert(idx >= 0);
-		if(get_seq_value(idx, anim_time) > 0.0) {
-			clear_seq_track(idx);
-			set_seq_value(idx, anim_time, beam_speed);
-			set_seq_value(idx, anim_time + 3000, 0);
-			orig_beam_speed = beam_speed;
-		} else {
-			clear_seq_track(idx);
-			set_seq_value(idx, anim_time, 0);
-			set_seq_value(idx, anim_time + 3000, orig_beam_speed);
-		}
+		set_seq_value(idx, anim_time, beam_speed);
+		set_seq_value(idx, anim_time + 2000, 0);
 		break;
 
 	case 'c':
@@ -463,6 +517,25 @@ static void keyboard(unsigned char c, int x, int y)
 	case 'X':
 		printf("clearing logo keyframes\n");
 		clear_seq_track("xlogo");
+		break;
+
+	case 'z':
+		set_seq_value("xcircle", anim_time, xcircle < 0.5 ? 1.0 : 0.0);
+		break;
+
+	case 'Z':
+		printf("clearing circle keyframes\n");
+		clear_seq_track("xcircle");
+		break;
+
+
+	case 'p':
+		set_seq_value("paper", anim_time, paper < 0.5 ? 1.0 : 0.0);
+		break;
+
+	case 'P':
+		printf("clearing paper keyframes\n");
+		clear_seq_track("paper");
 		break;
 
 	case '`':

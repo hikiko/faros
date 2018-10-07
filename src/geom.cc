@@ -144,7 +144,7 @@ void ground()
 	glPopMatrix();
 }
 
-void xlogo(float sz, float alpha, float xcircle)
+void xlogo(float sz, const float *col_ink, const float *col_paper, float alpha, float xcircle)
 {
 	static const float xlogo_varr[] = {
 		-0.500, 0.407, -0.113, -0.109, 0.059, -0.006, -0.251, 0.407,
@@ -168,7 +168,7 @@ void xlogo(float sz, float alpha, float xcircle)
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 	glBegin(GL_QUADS);
-	glColor4f(0, 0, 0, alpha);
+	glColor4f(col_ink[0], col_ink[1], col_ink[2], alpha);
 	const float *vptr = xlogo_varr;
 	for(int i=0; i<(int)(sizeof xlogo_varr / sizeof *xlogo_varr) / 2; i++) {
 		glVertex2fv(vptr);
@@ -200,7 +200,7 @@ void xlogo(float sz, float alpha, float xcircle)
 		float width = 0.05f * tcol;
 		float z = -cos(theta) * 0.1;
 
-		glColor4f(0.9, 0.9, 0.9, tcol);
+		glColor4f(col_paper[0], col_paper[1], col_paper[2], tcol);
 		glTexCoord2f(0, 1.0f - tcol);
 		glVertex3f(sin(theta) * (rad + width), cos(theta) * (rad + width), z);
 		glTexCoord2f(1, 1.0f - tcol);

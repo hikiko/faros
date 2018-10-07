@@ -1,5 +1,7 @@
 varying vec3 local_pos;
 
+uniform float alpha;
+
 #define PI	3.141592653589793
 #define TWO_PI	(2.0 * PI)
 
@@ -21,7 +23,7 @@ void main()
 	vec3 skycol = mix(col_hor, col_zen, alt);
 
 	gl_FragColor.rgb = mix(skycol, vec3(0.0, 0.0, 0.0), cval);
-	gl_FragColor.a = 1.0;
+	gl_FragColor.a = alpha;
 }
 
 const float cloud_dens = 0.25;
