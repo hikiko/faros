@@ -121,6 +121,15 @@ void xlogo()
 		-0.058, -0.182, 0.114, -0.079, 0.500, 0.407, 0.411, 0.407
 	};
 
+	/* billboarding */
+	float mv[16];
+	glGetFloatv(GL_MODELVIEW_MATRIX, mv);
+	mv[0] = mv[5] = mv[10] = 1.0f;
+	mv[1] = mv[2] = mv[4] = mv[6] = mv[8] = mv[9] = 0.0f;
+
+	glPushMatrix();
+	glLoadMatrixf(mv);
+
 	glPushAttrib(GL_ENABLE_BIT);
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -134,4 +143,5 @@ void xlogo()
 	glEnd();
 
 	glPopAttrib();
+	glPopMatrix();
 }
