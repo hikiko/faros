@@ -516,9 +516,6 @@ static void mmotion(int x, int y)
 		cam.theta += dx * 0.5;
 		cam.phi += dy * 0.5;
 
-		cam.theta = fmod(cam.theta, 360.0f);
-		if(cam.theta < 0.0f) cam.theta += 360.0f;
-
 		if (cam.phi < -90)
 			cam.phi = -90;
 
