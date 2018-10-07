@@ -114,4 +114,24 @@ void ground()
 
 void xlogo()
 {
+	static const float xlogo_varr[] = {
+		-0.500, 0.407, -0.113, -0.109, 0.059, -0.006, -0.251, 0.407,
+		-0.113, -0.109, -0.499, -0.593, -0.410, -0.593, 0.059, -0.006,
+		-0.058, -0.182, 0.251, -0.593, 0.500, -0.593, 0.114, -0.079,
+		-0.058, -0.182, 0.114, -0.079, 0.500, 0.407, 0.411, 0.407
+	};
+
+	glPushAttrib(GL_ENABLE_BIT);
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+	glBegin(GL_QUADS);
+	const float *vptr = xlogo_varr;
+	for(int i=0; i<(int)(sizeof xlogo_varr / sizeof *xlogo_varr) / 2; i++) {
+		glVertex2fv(vptr);
+		vptr += 2;
+	}
+	glEnd();
+
+	glPopAttrib();
 }
