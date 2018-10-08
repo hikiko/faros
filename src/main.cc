@@ -69,8 +69,8 @@ static bool show_help, show_ui = true;
 
 int main(int argc, char **argv)
 {
-	glutInit(&argc, argv);
 	glutInitWindowSize(800, 600);
+	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_DEPTH | GLUT_MULTISAMPLE);
 
 	glutCreateWindow("Faros (press F1 for controls help)");
