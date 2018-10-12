@@ -1,0 +1,161 @@
+faros {
+	track {
+		name = "beam-speed"
+		key {
+			time = 0
+			value = 0.3
+		}
+		key {
+			time = 2800
+			value = 0.3
+		}
+		key {
+			time = 4000
+			value = 0
+		}
+	}
+
+	track {
+		name = "beam-len"
+		key {
+			time = 900
+			value = 16
+		}
+		key {
+			time = 3800
+			value = 2.5
+		}
+	}
+
+	track {
+		name = "cam-dist"
+		key {
+			time = 0
+			value = 10
+		}
+		key {
+			time = 2355
+			value = 5
+		}
+		key {
+			time = 3800
+			value = 4.2
+		}
+	}
+
+	track {
+		name = "cam-phi"
+		key {
+			time = 0
+			value = -14.5
+		}
+		key {
+			time = 2355
+			value = -1
+		}
+		key {
+			time = 3800
+			value = -9
+		}
+	}
+
+	track {
+		name = "cam-theta"
+		key {
+			time = 0
+			value = 6.5
+		}
+		key {
+			time = 2355
+			value = 44.5
+		}
+		key {
+			time = 3800
+			value = 45
+		}
+	}
+
+	track {
+		name = "cam-x"
+		key {
+			time = 0
+			value = 0
+		}
+		key {
+			time = 2355
+			value = 1.49207
+		}
+		key {
+			time = 3800
+			value = 1.25912
+		}
+	}
+
+	track {
+		name = "cam-y"
+		key {
+			time = 0
+			value = 0
+		}
+		key {
+			time = 2355
+			value = 2.79284
+		}
+		key {
+			time = 3800
+			value = 2.83551
+		}
+	}
+
+	track {
+		name = "cam-z"
+		key {
+			time = 0
+			value = 0
+		}
+		key {
+			time = 2355
+			value = -0.0282277
+		}
+		key {
+			time = 3800
+			value = 0.341907
+		}
+	}
+
+	track {
+		name = "xlogo"
+		key {
+			time = 4000
+			value = 0
+		}
+		key {
+			time = 4500
+			value = 1
+		}
+	}
+
+	track {
+		name = "xcircle"
+		key {
+			time = 4600
+			value = 0
+		}
+		key {
+			time = 5100
+			value = 1
+		}
+	}
+
+	track {
+		name = "paper"
+		key {
+			time = 5500
+			value = 0
+		}
+		key {
+			time = 6200
+			value = 1
+		}
+	}
+}
